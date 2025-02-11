@@ -42,22 +42,29 @@ let two_args : id list -> id * id = function
   | id1 :: id2 :: _ -> id1 , id2
   | _ -> failwith "ill-formed bril code"
 
+let binop_of_str : string -> binop = function
+  | "add" -> Add
+  | "mul" -> Mul
+  | "sub" -> Sub
+  | "div" -> Div
+  | "eq" -> Eq
+  | "lt" -> Lt
+  | "gt" -> Gt
+  | "le" -> Le
+  | "ge" -> Ge
+  | "and" -> And
+  | "or" -> Or
+  | _ -> failwith "ill-formed bril code"
+
 let exp_of_json (op: string) (m: Raw.t StrMap.t) : exp =
   let args = StrMap.find "args" m |> map_json_lst str_of_json in
   match op with
-  | "add" -> Add (two_args args)
-  | "mul" -> Mul (two_args args)
-  | "sub" -> Sub (two_args args)
-  | "div" -> Div (two_args args)
-  | "eq" -> Eq (two_args args)
-  | "lt" -> Lt (two_args args)
-  | "gt" -> Gt (two_args args)
-  | "le" -> Le (two_args args)
-  | "ge" -> Ge (two_args args)
-  | "not" -> Not (List.hd args)
-  | "and" -> And (two_args args)
-  | "or" -> Or (two_args args)
-  | "id" -> Id (List.hd args)
+  | "add" | "mul" | "sub" | "div" | "eq" | "lt"
+  | "gt" | "le" | "ge" | "and" | "or" ->
+      let (arg1, arg2) = two_args args in
+      Binop (binop_of_str op, arg1, arg2)
+  | "not" -> Unop (Not, List.hd args)
+  | "id" -> Unop (Id, List.hd args)
   | "call" ->
       let func = StrMap.find "funcs" m |> map_json_lst str_of_json |> List.hd in
       Call (func, args)
@@ -140,28 +147,26 @@ let json_of_exp ((name, t): dest) (e: exp) : Raw.t =
   let dest_type = [("dest", string_lit name); ("type", json_of_ty t)] in
   let opcode =
     match e with
-    | Add _ -> "add"
-    | Mul _ -> "mul"
-    | Sub _ -> "sub"
-    | Div _ -> "div"
-    | Eq _ -> "eq"
-    | Lt _ -> "lt"
-    | Gt _ -> "gt"
-    | Le _ -> "le"
-    | Ge _ -> "ge"
-    | Not _ -> "not"
-    | And _ -> "and"
-    | Or _ -> "or"
-    | Id _ -> "id"
+    | Binop (Add, _, _) -> "add"
+    | Binop (Mul, _, _) -> "mul"
+    | Binop (Sub, _, _) -> "sub"
+    | Binop (Div, _, _) -> "div"
+    | Binop (Eq, _, _) -> "eq"
+    | Binop (Lt, _, _) -> "lt"
+    | Binop (Gt, _, _) -> "gt"
+    | Binop (Le, _, _) -> "le"
+    | Binop (Ge, _, _) -> "ge"
+    | Unop (Not, _) -> "not"
+    | Binop (And, _, _) -> "and"
+    | Binop (Or, _, _) -> "or"
+    | Unop (Id, _) -> "id"
     | Call _ -> "call"
   in
   let op = ["op", string_lit opcode] in
   let arguments =
     match e with
-    | Add (x1, x2) | Mul (x1, x2) | Sub (x1, x2) | Div (x1, x2) | Eq (x1, x2)
-    | Lt (x1, x2) | Gt (x1, x2) | Le (x1, x2) | Ge (x1, x2) | And (x1, x2)
-    | Or (x1, x2) -> [x1; x2]
-    | Id x | Not x -> [x]
+    | Binop (_, x1, x2) -> [x1; x2]
+    | Unop (_, x) -> [x]
     | Call (_, xs) -> xs
   in
   let args = ["args", `List (List.map string_lit arguments)] in

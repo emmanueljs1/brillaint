@@ -12,20 +12,26 @@ type lit =
 type lbl = string
 type dest = id * ty
 
+type binop =
+  | Add
+  | Mul
+  | Sub
+  | Div
+  | Eq
+  | Lt
+  | Gt
+  | Le
+  | Ge
+  | And
+  | Or
+
+type unop =
+  | Not
+  | Id
+
 type exp =
-  | Add of (id * id)
-  | Mul of (id * id)
-  | Sub of (id * id)
-  | Div of (id * id)
-  | Eq of (id * id)
-  | Lt of (id * id)
-  | Gt of (id * id)
-  | Le of (id * id)
-  | Ge of (id * id)
-  | Not of id
-  | And of (id * id)
-  | Or of (id * id)
-  | Id of id
+  | Binop of (binop * id * id)
+  | Unop of (unop * id)
   | Call of (id * id list)
 
 type eff =
