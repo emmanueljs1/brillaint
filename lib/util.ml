@@ -1,7 +1,6 @@
+open Common
 open Syntax
 open Yojson
-
-module StrMap = Map.Make(String)
 
 let map_json_lst (f : Raw.t -> 'a) : Raw.t -> 'a list = function
   | `List l -> List.map f l

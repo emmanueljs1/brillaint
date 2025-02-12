@@ -1,7 +1,5 @@
+open Common
 open Syntax
-
-module IntMap = Map.Make(Int)
-module StrMap = Map.Make(String)
 
 type block = ins list
 
@@ -10,8 +8,9 @@ type blocks = block IntMap.t
 type cfg =
   { entry: int
   ; exit: int
-  ; successors: (int list) IntMap.t
+  ; successors: IntSet.t IntMap.t
   ; blocks: blocks
+  ; lbls: string IntMap.t
   }
 
 let is_terminator : eff -> bool = function
@@ -40,7 +39,7 @@ let mk_blocks : ins list -> blocks * int =
   in
   loop [] 0 IntMap.empty
 
-let mk_successors (bs: blocks) (size: int) : (int list) IntMap.t =
+let mk_successors (bs: blocks) (size: int) : IntSet.t IntMap.t =
   let lbls =
     IntMap.fold (fun k b acc ->
       match b with
@@ -50,28 +49,51 @@ let mk_successors (bs: blocks) (size: int) : (int list) IntMap.t =
   in
   IntMap.mapi (fun k b ->
     match List.rev b with
-    | Effect (Jmp lbl) :: _ -> [StrMap.find lbl lbls]
+    | Effect (Jmp lbl) :: _ ->
+        StrMap.find lbl lbls |> IntSet.singleton
     | Effect (Br (_, lbl1, lbl2)) :: _ ->
-        [StrMap.find lbl1 lbls; StrMap.find lbl2 lbls]
-    | Effect (Ret _) :: _ -> []
-    | _ -> if k + 1 = size then [] else [k + 1]
+        IntSet.of_list [StrMap.find lbl1 lbls; StrMap.find lbl2 lbls]
+    | Effect (Ret _) :: _ -> IntSet.empty
+    | _ -> if k + 1 = size then IntSet.empty else IntSet.singleton (k + 1)
   ) bs
 
 let mk_cfg (instrs: ins list) : cfg =
   let (bs, size) = mk_blocks instrs in
   let successors = mk_successors bs size in
 
+  let lbls =
+    IntMap.fold (fun k b acc ->
+      match b with
+      | Label s :: _ -> IntMap.add k s acc
+      | _ -> acc
+    ) bs IntMap.empty
+  in
+
   let exits =
     IntMap.filter (fun k _ ->
-      IntMap.find k successors |> List.is_empty
+      IntMap.find k successors |> IntSet.is_empty
     ) bs |> IntMap.to_list
   in
 
   match exits with
-  | [(k, _)] -> { entry = 0; exit = k; successors = successors; blocks = bs }
+  | [(k, _)] ->
+      { entry = 0; exit = k; successors = successors; blocks = bs; lbls = lbls }
   | _ ->
       { entry = 0
       ; exit = size
-      ; successors = IntMap.map (function | [] -> [size] | l -> l) successors
+      ; successors =
+        IntMap.map (fun succs ->
+          if IntSet.is_empty succs then
+            IntSet.singleton size
+          else
+            succs
+        ) successors
+        |> IntMap.add size IntSet.empty
       ; blocks = IntMap.add size [] bs
+      ; lbls = lbls
       }
+
+let predecessors (idx: int) (cfg: cfg) : blocks =
+  IntMap.filter (fun idx' _ ->
+    IntSet.exists ((=) idx) (IntMap.find idx' cfg.successors)
+  ) cfg.blocks

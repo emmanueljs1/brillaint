@@ -1,26 +1,30 @@
 open Lib.Cfg
+open Lib.Common
+open Lib.Df
 open Lib.Syntax
 open Lib.Util
 
-module IntMap = Map.Make(Int)
+let string_of_dom (d: domain) : string =
+  StrSet.to_list d
+  |> String.concat ", "
+  |> Printf.sprintf "{ %s }"
 
 let () =
-  let p = Yojson.Raw.from_file Sys.argv.(1) |> prog_of_json in
-  let cfgs = List.map (fun f -> mk_cfg f.instrs) p in
-  List.iter (fun cfg ->
-    Printf.sprintf "entry: %d" cfg.entry |> print_endline;
-    Printf.sprintf "exit: %d" cfg.exit |> print_endline;
-    print_endline "blocks:";
-    IntMap.iter (fun k b ->
-      Printf.sprintf "block: %d" k |> print_endline;
-      List.iter (fun i ->
-        json_of_ins i |> Yojson.Raw.to_string |> print_endline
-      ) b
-    ) cfg.blocks;
-    print_endline "edges:";
-    IntMap.iter (fun k l ->
-      List.iter (fun k' ->
-        Printf.sprintf "%d -> %d" k k' |> print_endline
-      ) l
-    ) cfg.successors
+  let p = Yojson.Raw.from_channel stdin |> prog_of_json in
+  let cfgs = List.map (fun f -> (f.name, mk_cfg f.instrs)) p in
+  List.iter (fun (fn, cfg) ->
+    Printf.sprintf "%s:" fn |> print_endline;
+    let (ins, outs) = df cfg in
+    IntMap.iter (fun b _ ->
+      let lbl =
+        match IntMap.find_opt b cfg.lbls with
+        | Some lbl -> lbl
+        | None -> string_of_int b
+      in
+      Printf.sprintf "  %s:" lbl |> print_endline;
+      let inb = IntMap.find b ins in
+      string_of_dom inb |> Printf.sprintf "    in: %s" |> print_endline;
+      let outb = IntMap.find b outs in
+      string_of_dom outb |> Printf.sprintf "    out: %s" |> print_endline
+    ) cfg.blocks
   ) cfgs

@@ -1,5 +1,5 @@
 (executable
- (public_name brillaint)
+ (public_name main)
  (name main)
  (libraries lib yojson))
 
