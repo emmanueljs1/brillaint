@@ -29,7 +29,11 @@ end
 module Defined = Analysis(Defn)
 
 module Constants : Domain = struct
-  type domain = (lit option) StrMap.t
+  type value =
+    | Constant of lit
+    | Unknown
+
+  type domain = value StrMap.t
 
   let domain_eq = StrMap.equal (=)
 
@@ -38,33 +42,31 @@ module Constants : Domain = struct
   let merge outs =
     IntMap.fold (fun _ ->
       StrMap.merge (fun _ v1 v2 ->
-        match (v1, v2) with
-        | v1, None -> v1
-        | None, v2 -> v2
-        | Some v1, Some v2 -> if v1 = v2 then Some v1 else Some None
+        match v1, v2 with
+        | _, None -> Some Unknown
+        | None, _ -> Some Unknown
+        | Some v1, Some v2 -> if v1 = v2 then Some v1 else Some Unknown
       )
     ) outs StrMap.empty
 
   let transfer d i =
     match i with
-    | Const ((dst, _), lit) ->
-        StrMap.add dst (Some lit) d
-    | Assign ((dst, _), _) ->
-        StrMap.add dst None d
+    | Const ((dst, _), lit) -> StrMap.add dst (Constant lit) d
+    | Assign ((dst, _), _) -> StrMap.add dst Unknown d
     | _ -> d
+
+  let string_of_value v =
+    match v with
+    | Unknown -> "?"
+    | Constant lit -> json_of_lit lit |> Yojson.Raw.to_string
 
   let string_of_domain d =
     if StrMap.is_empty d then
       "∅"
     else
       StrMap.to_list d
-      |> List.map (fun (x, v_opt) ->
-          let v =
-            match v_opt with
-            | None -> "?"
-            | Some lit -> json_of_lit lit |> Yojson.Raw.to_string
-          in
-          Printf.sprintf "%s -> %s" x v
+      |> List.map (fun (x, v) ->
+          string_of_value v |> Printf.sprintf "%s -> %s" x
       )
       |> String.concat ", "
 end
