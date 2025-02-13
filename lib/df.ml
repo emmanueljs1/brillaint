@@ -34,13 +34,13 @@ module Analysis (D : Domain) = struct
     IntMap.fold (fun _ -> merge) ds init
 
   let df (cfg: cfg) : domain dataflow =
-    let get_preds b =
+    let get_prev b =
       match dir with
       | Forward -> predecessors b cfg
       | Backward -> IntMap.find b cfg.successors
     in
 
-    let get_succs b =
+    let get_next b =
       match dir with
       | Forward -> IntMap.find b cfg.successors
       | Backward -> predecessors b cfg
@@ -58,13 +58,13 @@ module Analysis (D : Domain) = struct
       | Some b ->
         let outb = IntMap.find b outs in
 
-        let preds = get_preds b in
+        let prev = get_prev b in
 
         let inb =
           if is_init b then
             init
           else
-            IntMap.filter (fun b' _ -> IntSet.mem b' preds) outs |> merge_all
+            IntMap.filter (fun b' _ -> IntSet.mem b' prev) outs |> merge_all
         in
 
         let outb' = transfer_block (IntMap.find b cfg.blocks) inb in
@@ -74,7 +74,7 @@ module Analysis (D : Domain) = struct
           if domain_eq outb outb' then
             bs'
           else
-            IntSet.fold IntSet.add bs' (get_succs b)
+            IntSet.fold IntSet.add bs' (get_next b)
         in
 
         loop (IntMap.add b inb ins) (IntMap.add b outb' outs) bs''
