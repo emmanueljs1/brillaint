@@ -90,17 +90,3 @@ module Analysis (D : Domain) = struct
         let outs', ins' = loop ins outs worklist in
         ins', outs'
 end
-
-(*
-out[entry] = init
-in[*] = init
-
-worklist = all blocks
-while worklist is not empty:
-    b = pick any block from worklist
-    out[b] = merge(in[p] for every successor p of b)
-    in[b] = transfer(b, out[b])
-    if in[b] changed:
-        worklist += predecessors of b
-
-*)
