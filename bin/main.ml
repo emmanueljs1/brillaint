@@ -4,15 +4,14 @@ open Lib.Df
 open Lib.Syntax
 open Lib.Util
 
-module Defn : Domain = struct
+module Definitions : Domain = struct
   type domain = StrSet.t
   
   let domain_eq = StrSet.equal
   
   let init = StrSet.empty
   
-  let merge outs =
-    IntMap.fold (fun _ -> StrSet.union) outs StrSet.empty
+  let merge = StrSet.union
   
   let transfer d i =
     match dest_of_ins i with
@@ -24,9 +23,11 @@ module Defn : Domain = struct
       "∅"
     else
       StrSet.to_list d |> String.concat ", "
+
+  let dir = Forward
 end
 
-module Defined = Analysis(Defn)
+module Defined = Analysis(Definitions)
 
 module Constants : Domain = struct
   type value =
@@ -39,15 +40,13 @@ module Constants : Domain = struct
 
   let init = StrMap.empty
 
-  let merge outs =
-    IntMap.fold (fun _ ->
-      StrMap.merge (fun _ v1 v2 ->
-        match v1, v2 with
-        | _, None -> Some Unknown
-        | None, _ -> Some Unknown
-        | Some v1, Some v2 -> if v1 = v2 then Some v1 else Some Unknown
-      )
-    ) outs StrMap.empty
+  let merge =
+    StrMap.merge (fun _ v1 v2 ->
+      match v1, v2 with
+      | _, None -> v1
+      | None, _ -> v2
+      | Some v1, Some v2 -> if v1 = v2 then Some v1 else Some Unknown
+    )
 
   let transfer d i =
     match i with
@@ -69,9 +68,39 @@ module Constants : Domain = struct
           string_of_value v |> Printf.sprintf "%s -> %s" x
       )
       |> String.concat ", "
+
+  let dir = Forward
 end
 
 module CProp = Analysis(Constants)
+
+module Variables : Domain = struct
+  type domain = StrSet.t
+
+  let domain_eq = StrSet.equal
+  
+  let init = StrSet.empty
+  
+  let merge = StrSet.union
+  
+  let transfer d i =
+    let d' =
+      match dest_of_ins i with
+      | Some (dst, _) -> StrSet.remove dst d
+      | _ -> d
+    in
+    args_of_ins i |> List.fold_left (fun d'' id -> StrSet.add id d'') d'
+
+  let string_of_domain d =
+    if StrSet.is_empty d then
+      "∅"
+    else
+      StrSet.to_list d |> String.concat ", "
+
+  let dir = Backward
+end
+
+module LiveVariables = Analysis(Variables)
 
 type analysis = { analyze : cfg -> unit }
 
@@ -94,9 +123,11 @@ let mk_analysis (df: cfg -> 'a dataflow) (show: 'a -> string) : analysis =
 
 let () =
   let analysis =
-    match (try Sys.argv.(1) with Invalid_argument _ -> "const") with
+    match (try Sys.argv.(1) with Invalid_argument _ -> "...") with
     | "const" -> mk_analysis CProp.df Constants.string_of_domain
-    | _ -> mk_analysis Defined.df Defn.string_of_domain
+    | "defined" -> mk_analysis Defined.df Definitions.string_of_domain
+    | "live" -> mk_analysis LiveVariables.df Variables.string_of_domain
+    | _ -> failwith "invalid dataflow analysis"
   in
 
   let p = Yojson.Raw.from_channel stdin |> prog_of_json in

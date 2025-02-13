@@ -93,7 +93,8 @@ let mk_cfg (instrs: ins list) : cfg =
       ; lbls = lbls
       }
 
-let predecessors (idx: int) (cfg: cfg) : blocks =
+let predecessors (idx: int) (cfg: cfg) : IntSet.t =
   IntMap.filter (fun idx' _ ->
     IntSet.exists ((=) idx) (IntMap.find idx' cfg.successors)
   ) cfg.blocks
+  |> fun bs -> IntMap.fold (fun i _ -> IntSet.add i) bs IntSet.empty

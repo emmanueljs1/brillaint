@@ -1,0 +1,9 @@
+# ARGS: live
+@main {
+.b1:
+  i: int = const 2;
+.b2:
+  j: int = const 3;
+.b3:
+  i: int = add i j;
+}

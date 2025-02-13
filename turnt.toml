@@ -1,2 +1,2 @@
-command = "bril2json < {filename} | dune exec main"
+command = "bril2json < {filename} | dune exec main {args}"
 output.out = "-"

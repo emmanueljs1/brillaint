@@ -1,0 +1,12 @@
+# ARGS: live
+@main {
+  i: int = const 1;
+  j: int = const 2;
+  print i;
+.dead:
+  i: int = const 2;
+.alive:
+  print i;
+.dead1:
+  print j;
+}
